@@ -1,6 +1,6 @@
 import asyncio, time, json, random
-from websockets.sync.client import connect
-from websockets.sync.connection import Connection
+from websockets.client import connect
+from websockets.connection import Connection
 from websockets.exceptions import ConnectionClosedError
 from threading import Thread
 
@@ -58,14 +58,14 @@ class Presence:
         return True
 
 
-def authenticate(token, websocket:Connection, rich:Presence):
+async def authenticate(token, websocket:Connection, rich:Presence):
     """
     We send the websocket some authentication info once we have connected to verify our identity.
     
     This is an [IDENTIFY payload](https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure)
     containing a [Presence update](https://discord.com/developers/docs/topics/gateway-events#update-presence)
     """
-    websocket.send(json.dumps({
+    await websocket.send(json.dumps({
                 "op": 2,                                        # 2 means authenticating
                 "d": {
                     "token": f"{token}",                        # oauth token goes here for verifying identity
@@ -86,31 +86,31 @@ def authenticate(token, websocket:Connection, rich:Presence):
         )
     try:
         resp = websocket.recv()
-        return json.loads(resp)
+        return json.loads(await resp)
     except ConnectionClosedError:
         return False
 
 
-def send_heartbeat(websocket:Connection):
+async def send_heartbeat(websocket:Connection):
     """You need to send a heartbeat at least once in an interval to stay connected to Discord's websocket"""
-    websocket.send(json.dumps({
+    await websocket.send(json.dumps({
         "op": 1,                                    # code 1 is to send a heartbeat
         "d": None
     }))
     resp = websocket.recv()
-    return resp
+    return await resp
 
 
 def plog(symbol, text, username, extra):
     print(f"[{symbol}] {f'{text} |':>25} {username + ' |':>25} {extra}")
 
 
-def main(token, activity:Presence):
-    with connect("wss://gateway.discord.gg/?v=10&encoding=json") as websocket:
-        resp = json.loads(websocket.recv())
+async def main(token, activity:Presence):
+    async with connect("wss://gateway.discord.gg/?v=10&encoding=json") as websocket:
+        resp = json.loads(await websocket.recv())
         heartbeat_interval = resp["d"]["heartbeat_interval"]
 
-        auth_resp = authenticate(token, websocket, activity)
+        auth_resp = await authenticate(token, websocket, activity)
         if not auth_resp: plog("🔐", "Failed to Authenticate", "-", "TOKEN INVALID"); return
         
         username = auth_resp['d']['user']['username']
@@ -126,13 +126,13 @@ def main(token, activity:Presence):
 
                     # print(f'[💓] Sending Heartbeat {heartbeat_counter:04} | {heartbeat_interval}ms | {token}')
                     heartbeat_counter += 1
-                    resp = send_heartbeat(websocket)
+                    resp = await send_heartbeat(websocket)
                     timer_start = time.time()
             except TypeError:
                 print(resp)
 
-
-if __name__ == "__main__":
+async def run_main():
+    tasks = []
     for token in tokens:
         online_status = random.choice(config["choose_random_online_status_from"])
         chosen_activity_type = activity_lookup_table[random.choice(config["choose_random_activity_type_from"])]
@@ -158,12 +158,15 @@ if __name__ == "__main__":
             case Status.Activity.Competing:
                 name = random.choice(config["competing"]["choose_random_name_from"])
 
-
-
         activity = Presence(online_status)
         activity.addActivity(
             activity_type=chosen_activity_type,
             name=name,
             url=url
         )
+        tasks.append(main(token, activity))
+    await asyncio.gather(*tasks)
+
+if __name__ == "__main__":
+        asyncio.run(run_main())
     

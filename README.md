@@ -43,7 +43,7 @@ The `config.json` file allows you to customize the behavior of the Discord Prese
 
 ### Game Activity Configuration
 
-For the `game` activity type, you can specify a list of games from which the script will choose randomly for your Discord presence. Customize this section by adding or removing/adding game titles as needed:
+For the `game` activity type, you can specify a list of games from which the script will choose randomly for the Discord presence. Customize this section by adding or removing/adding game titles as needed:
 
 ```json5
 "game": {

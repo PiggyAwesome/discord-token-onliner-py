@@ -1,6 +1,6 @@
 import asyncio, time, json, random
-from websockets.client import connect
-from websockets.connection import Connection
+from websockets.sync.client import connect
+from websockets.sync.connection import Connection
 from websockets.exceptions import ConnectionClosedError
 from threading import Thread
 
@@ -33,7 +33,7 @@ class Status:
         Watching = 3	            #   Watching {name}
         Custom = 4	                #   {emoji} {state} am cool
         Competing = 5	            #   Competing in {name} World Champions
-        all_types = print([Game, Streaming, Listening, Watching, Custom, Competing])
+        all_types = [Game, Streaming, Listening, Watching, Custom, Competing]
         class Games:
             all_games =  ['Minecraft', 'Rust', 'VRChat', 'reeeee', 'MORDHAU', 'Fortnite', 'Apex Legends', 'Escape from Tarkov', 'Rainbow Six Siege', 'Counter-Strike: Global Offense', 'Sinner: Sacrifice for Redemption', 'Minion Masters', 'King of the Hat', 'Bad North', 'Moonlighter', 'Frostpunk', 'Starbound', 'Masters of Anima', 'Celeste', 'Dead Cells', 'CrossCode', 'Omensight', 'Into the Breach', 'Battle Chasers: Nightwar', 'Red Faction Guerrilla Re-Mars-tered Edition', 'Spellforce 3', 'This is the Police 2', 'Hollow Knight', 'Subnautica', 'The Banner Saga 3', 'Pillars of Eternity II: Deadfire', 'This War of Mine', 'Last Day of June', 'Ticket to Ride', 'RollerCoaster Tycoon 2: Triple Thrill Pack', '140', 'Shadow Tactics: Blades of the Shogun', 'Pony Island', 'Lost Horizon', 'Metro: Last Light Redux', 'Unleash', 'Guacamelee! Super Turbo Championship Edition', 'Brutal Legend', 'Psychonauts', 'The End Is Nigh', 'Seasons After Fall', 'SOMA', 'Trine 2: Complete Story', 'Trine 3: The Artifacts of Power', 'Trine Enchanted Edition', 'Slime-San', 'The Inner World', 'Bridge Constructor', 'Bridge Constructor Medieval', 'Dead Age', 'Risk of Rain', "Wasteland 2: Director's Cut", 'The Metronomicon: Slay The Dance Floor', 'TowerFall Ascension + Expansion', 'Nidhogg', 'System Shock: Enhanced Edition', 'System Shock 2', "Oddworld:New 'n' Tasty!", 'Out of the Park Baseball 18', 'Hob', 'Destiny 2', 'Torchlight', 'Torchlight 2', 'INSIDE', 'LIMBO', "Monaco: What's Yours Is Mine", 'Tooth and Tail', 'Dandara', 'GoNNER', 'Kathy Rain', 'Kingdom: Classic', 'Kingdom: New Lands', 'Tormentor X Punisher', 'Chaos Reborn', 'Ashes of the Singularity: Escalation', 'Galactic Civilizations III', 'Super Meat Boy', 'Super Hexagon', 'de Blob 2', 'Darksiders II Deathinitive Edition', 'Darksiders Warmastered Edition', 'de Blob', 'Red Faction 1', 'Dungeon Defenders']
 
@@ -58,14 +58,14 @@ class Presence:
         return True
 
 
-async def authenticate(token, websocket:Connection, rich:Presence):
+def authenticate(token, websocket:Connection, rich:Presence):
     """
     We send the websocket some authentication info once we have connected to verify our identity.
     
     This is an [IDENTIFY payload](https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure)
     containing a [Presence update](https://discord.com/developers/docs/topics/gateway-events#update-presence)
     """
-    await websocket.send(json.dumps({
+    websocket.send(json.dumps({
                 "op": 2,                                        # 2 means authenticating
                 "d": {
                     "token": f"{token}",                        # oauth token goes here for verifying identity
@@ -86,53 +86,57 @@ async def authenticate(token, websocket:Connection, rich:Presence):
         )
     try:
         resp = websocket.recv()
-        return json.loads(await resp)
+        return json.loads(resp)
     except ConnectionClosedError:
         return False
 
 
-async def send_heartbeat(websocket:Connection):
+def send_heartbeat(websocket:Connection):
     """You need to send a heartbeat at least once in an interval to stay connected to Discord's websocket"""
-    await websocket.send(json.dumps({
+    websocket.send(json.dumps({
         "op": 1,                                    # code 1 is to send a heartbeat
         "d": None
     }))
     resp = websocket.recv()
-    return await resp
+    return resp
 
 
 def plog(symbol, text, username, extra):
     print(f"[{symbol}] {f'{text} |':>25} {username + ' |':>25} {extra}")
 
 
-async def main(token, activity:Presence):
-    async with connect("wss://gateway.discord.gg/?v=10&encoding=json") as websocket:
-        resp = json.loads(await websocket.recv())
-        heartbeat_interval = resp["d"]["heartbeat_interval"]
+def main(token, activity:Presence):
+    try:
+        with connect("wss://gateway.discord.gg/?v=10&encoding=json") as websocket:
+            heartbeat_interval = resp["d"]["heartbeat_interval"]
 
-        auth_resp = await authenticate(token, websocket, activity)
-        if not auth_resp: plog("🔐", "Failed to Authenticate", "-", "TOKEN INVALID"); return
-        
-        username = auth_resp['d']['user']['username']
-        required_action = auth_resp['d']['required_action']
-        plog("🔑", "Authenticated", username, required_action)
+            auth_resp = authenticate(token, websocket, activity)
+            if not auth_resp: plog("🔐", "Failed to Authenticate", "-", "TOKEN INVALID"); return
 
-        timer_start = time.time()
-        heartbeat_counter = 1
-        while True:
-            try:
-                if time.time()-timer_start >= heartbeat_interval/1000: # convert to seconds as a common unit
-                    plog("💓", f"Sending Heartbeat {heartbeat_counter:04}", username, f"{heartbeat_interval}ms")
+            username = auth_resp['d']['user']['username']
+            required_action = auth_resp['d']['required_action']
+            plog("🔑", "Authenticated", username, required_action)
 
-                    # print(f'[💓] Sending Heartbeat {heartbeat_counter:04} | {heartbeat_interval}ms | {token}')
-                    heartbeat_counter += 1
-                    resp = await send_heartbeat(websocket)
-                    timer_start = time.time()
-            except TypeError:
-                print(resp)
+            timer_start = time.time()
+            heartbeat_counter = 1
+            while True:
+                try:
+                    # print(resp)
+                    if time.time()-timer_start >= heartbeat_interval/1000: # convert to seconds as a common unit
+                        plog("💓", f"Sending Heartbeat {heartbeat_counter:04}", username, f"{heartbeat_interval}ms")
 
-async def run_main():
-    tasks = []
+                        heartbeat_counter += 1
+                        resp = send_heartbeat(websocket)
+                        timer_start = time.time()
+                    time.sleep(0.5)
+                except TypeError:
+                    print(resp)
+    except Exception:
+        Thread(target=main, args=(token, activity)).start()
+        return
+
+
+if __name__ == "__main__":
     for token in tokens:
         online_status = random.choice(config["choose_random_online_status_from"])
         chosen_activity_type = activity_lookup_table[random.choice(config["choose_random_activity_type_from"])]
@@ -158,15 +162,13 @@ async def run_main():
             case Status.Activity.Competing:
                 name = random.choice(config["competing"]["choose_random_name_from"])
 
+
+
         activity = Presence(online_status)
         activity.addActivity(
             activity_type=chosen_activity_type,
             name=name,
             url=url
         )
-        tasks.append(main(token, activity))
-    await asyncio.gather(*tasks)
 
-if __name__ == "__main__":
-        asyncio.run(run_main())
-    
+        Thread(target=main, args=(token, activity)).start()

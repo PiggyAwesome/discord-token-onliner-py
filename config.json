@@ -6,7 +6,7 @@
     },
     "streaming": {
         "choose_random_name_from": ["t.me/pigservices"],
-        "choose_random_url_from": ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
+        "choose_random_url_from": ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https:/twitch.tv/piggyawesome"]
 
     },
     "listening": {
@@ -16,7 +16,7 @@
         "choose_random_name_from": ["skibidi toilet #7"]
     },
     "custom": {
-        "choose_random_name_from": [":pig_nose::pig_nose::pig_nose::pig_nose::pig_nose:"]
+        "choose_random_name_from": ["t.me/pigservices"]
     },
     "competing": {
         "choose_random_name_from": ["Tournament"]

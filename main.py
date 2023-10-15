@@ -5,17 +5,6 @@ from websockets.exceptions import ConnectionClosedError
 from threading import Thread
 
 
-# get tokens from token file
-with open("tokens.txt", "r") as token_file: 
-    tokens = token_file.read().splitlines()
-
-
-with open("config.json", "r") as config_file:
-    config = json.loads(config_file.read())
-
-activity_types:list = config["choose_random_activity_type_from"]
-activity_lookup_table:dict = {"game": 0, "streaming": 1, "listening": 2, "watching": 3, "custom": 4, "competing": 5}
-
 
 class Status:
     "Some enum-like variables to easily choose a status"
@@ -58,85 +47,123 @@ class Presence:
         return True
 
 
-def authenticate(token, websocket:Connection, rich:Presence):
-    """
-    We send the websocket some authentication info once we have connected to verify our identity.
-    
-    This is an [IDENTIFY payload](https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure)
-    containing a [Presence update](https://discord.com/developers/docs/topics/gateway-events#update-presence)
-    """
-    websocket.send(json.dumps({
-                "op": 2,                                        # 2 means authenticating
-                "d": {
-                    "token": f"{token}",                        # oauth token goes here for verifying identity
-                    "intents": 513,                             # parameters for what to recieve from ws
-                    "properties": {
-                        "os": "linux",                          # operating system
-                        "browser": "Brave",                     # browser
-                        "device": "Desktop"                     # device
-                    },
-                "presence": {
-                    "activities": [activity for activity in rich.activities],
-                    "status": rich.online_status,               # online status
-                    "since": time.time(),                       # epoch time for when your status started
-                    "afk": False                                # whether or not you appear to be afk
+
+
+class DiscordWebSocket:
+    def __init__(self) -> None:
+        self.websocket_instance = connect("wss://gateway.discord.gg/?v=10&encoding=json")
+        self.heartbeat_counter = 0
+
+    def get_heatbeat_interval(self):
+        resp = json.loads(self.websocket_instance.recv())
+        self.heartbeat_interval = resp["d"]["heartbeat_interval"]
+
+    def authenticate(self, token, rich:Presence):
+        """
+        We send the websocket some authentication info once we have connected to verify our identity.
+
+        This is an [IDENTIFY payload](https://discord.com/developers/docs/topics/gateway-events#identify-identify-structure)
+        containing a [Presence update](https://discord.com/developers/docs/topics/gateway-events#update-presence)
+        """
+        self.websocket_instance.send(json.dumps({
+                    "op": 2,                                        # 2 means authenticating
+                    "d": {
+                        "token": f"{token}",                        # oauth token goes here for verifying identity
+                        "intents": 513,                             # parameters for what to recieve from ws
+                        "properties": {
+                            "os": "linux",                          # operating system
+                            "browser": "Brave",                     # browser
+                            "device": "Desktop"                     # device
+                        },
+                    "presence": {
+                        "activities": [activity for activity in rich.activities],
+                        "status": rich.online_status,               # online status
+                        "since": time.time(),                       # epoch time for when your status started
+                        "afk": False                                # whether or not you appear to be afk
+                        }
                     }
-                }
-            })
-        )
-    try:
-        resp = websocket.recv()
-        return json.loads(resp)
-    except ConnectionClosedError:
-        return False
+                })
+            )
+        try:
+            resp = json.loads(self.websocket_instance.recv())
+            self.username = resp['d']['user']['username']
+            self.required_action = resp['d']['required_action']
+            self.heartbeat_counter += 1
+            self.last_heartbeat = time.time()
+
+            return resp
+        except ConnectionClosedError:
+            return False
 
 
-def send_heartbeat(websocket:Connection):
-    """You need to send a heartbeat at least once in an interval to stay connected to Discord's websocket"""
-    websocket.send(json.dumps({
-        "op": 1,                                    # code 1 is to send a heartbeat
-        "d": None
-    }))
-    resp = websocket.recv()
-    return resp
+    def send_heartbeat(self):
+        """You need to send a heartbeat at least once in an interval to stay connected to Discord's websocket"""
+        self.websocket_instance.send(json.dumps({
+            "op": 1,                                    # code 1 is to send a heartbeat
+            "d": None
+        }))
+
+        self.heartbeat_counter += 1
+        self.last_heartbeat = time.time()
+
+        resp = self.websocket_instance.recv()
+        return resp
+
+
+def intro(tokens):
+    from colorama import Fore, Back, Style
+    print(Fore.GREEN + "Piggy's Onliner "
+        + Fore.MAGENTA + "Epic " 
+        + Fore.CYAN + "[Multiple Accounts] "
+        + Fore.RED + f"Total Accounts: {len(tokens)}"
+        + Style.RESET_ALL)
+
+    print("██████╗ ██╗ ██████╗  ██████╗██╗   ██╗███████╗     ██████╗ ███╗   ██╗██╗     ██╗███╗   ██╗███████╗██████╗ ")
+    print("██╔══██╗██║██╔════╝ ██╔════╝╚██╗ ██╔╝██╔════╝    ██╔═══██╗████╗  ██║██║     ██║████╗  ██║██╔════╝██╔══██╗")
+    print("██████╔╝██║██║  ███╗██║  ███╗╚████╔╝ ███████╗    ██║   ██║██╔██╗ ██║██║     ██║██╔██╗ ██║█████╗  ██████╔╝")
+    print("██╔═══╝ ██║██║   ██║██║   ██║ ╚██╔╝  ╚════██║    ██║   ██║██║╚██╗██║██║     ██║██║╚██╗██║██╔══╝  ██╔══██╗")
+    print("██║     ██║╚██████╔╝╚██████╔╝  ██║   ███████║    ╚██████╔╝██║ ╚████║███████╗██║██║ ╚████║███████╗██║  ██║")
+    print("╚═╝     ╚═╝ ╚═════╝  ╚═════╝   ╚═╝   ╚══════╝     ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝")
+    print(Fore.GREEN + "                         Created By PiggyAwesome" + Style.RESET_ALL)                                                                                                    
 
 
 def plog(symbol, text, username, extra):
-    print(f"[{symbol}] {f'{text} |':>25} {username + ' |':>25} {extra}")
+    print(f"[{symbol}] {f'{text} |':>25} {username + ' |':>32} {extra}")
 
 
 def main(token, activity:Presence):
-    try:
-        with connect("wss://gateway.discord.gg/?v=10&encoding=json") as websocket:
-            heartbeat_interval = resp["d"]["heartbeat_interval"]
+    socket = DiscordWebSocket()
+    socket.get_heatbeat_interval()
 
-            auth_resp = authenticate(token, websocket, activity)
-            if not auth_resp: plog("🔐", "Failed to Authenticate", "-", "TOKEN INVALID"); return
+    auth_resp = socket.authenticate(token, activity)
+    if not auth_resp: plog("🔐", "Failed to Authenticate", "-", "TOKEN INVALID"); return
 
-            username = auth_resp['d']['user']['username']
-            required_action = auth_resp['d']['required_action']
-            plog("🔑", "Authenticated", username, required_action)
+    plog("🔑", "Authenticated", socket.username, socket.required_action)
 
-            timer_start = time.time()
-            heartbeat_counter = 1
-            while True:
-                try:
-                    # print(resp)
-                    if time.time()-timer_start >= heartbeat_interval/1000: # convert to seconds as a common unit
-                        plog("💓", f"Sending Heartbeat {heartbeat_counter:04}", username, f"{heartbeat_interval}ms")
-
-                        heartbeat_counter += 1
-                        resp = send_heartbeat(websocket)
-                        timer_start = time.time()
-                    time.sleep(0.5)
-                except TypeError:
-                    print(resp)
-    except Exception:
-        Thread(target=main, args=(token, activity)).start()
-        return
+    while True:
+        try:
+            if time.time()-socket.last_heartbeat >= (socket.heartbeat_interval/1000)-5: # convert to seconds as a common unit and minus 5 to make room for error
+                plog("💓", f"Sending Heartbeat {socket.heartbeat_counter:04}", socket.username, f"{socket.heartbeat_interval}ms")
+                resp = socket.send_heartbeat()
+            time.sleep(0.5)
+        except TypeError:
+            print(resp)
 
 
 if __name__ == "__main__":
+    # get tokens from token file
+    with open("tokens.txt", "r") as token_file: 
+        tokens = token_file.read().splitlines()
+    
+    
+    with open("config.json", "r") as config_file:
+        config = json.loads(config_file.read())
+    
+    activity_types:list = config["choose_random_activity_type_from"]
+    activity_lookup_table:dict = {"game": 0, "streaming": 1, "listening": 2, "watching": 3, "custom": 4, "competing": 5}
+    
+
+    intro(tokens)
     for token in tokens:
         online_status = random.choice(config["choose_random_online_status_from"])
         chosen_activity_type = activity_lookup_table[random.choice(config["choose_random_activity_type_from"])]
@@ -148,7 +175,7 @@ if __name__ == "__main__":
 
             case Status.Activity.Streaming:
                 name = random.choice(config["streaming"]["choose_random_name_from"])
-                url = random.choice(config["streaming"]["choose_random_name_from"])
+                url = random.choice(config["streaming"]["choose_random_url_from"])
 
             case Status.Activity.Listening:
                 name = random.choice(config["listening"]["choose_random_name_from"])

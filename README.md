@@ -121,6 +121,10 @@ For the `competing` activity type, define what the account should be competing i
 }
 ```
 
+## Todo
+
+- [ ] add handler to reconnect if a token disconnects (discord's session thing)
+
 ## Dependencies
 
 - The script uses Python and requires the following libraries: `websockets`, `colorama`.

@@ -1,7 +1,11 @@
 # discord-token-onliner-py
+
+### new update at 20 stars 👀
+
 Makes multiple Discord accounts go online by using their 0Auth token
 
 **Discord Token Onliner** is a Python script that allows you to change your Discord presence status for multiple accounts with various activities. Python rework of [my javascript version](https://github.com/PiggyAwesome/discord-token-onliner)
+
 
 ## Features
 - Set custom presence status (Online, Do Not Disturb, Idle, Invisible, or Offline).

@@ -87,7 +87,7 @@ class DiscordWebSocket:
         try:
             resp = json.loads(self.websocket_instance.recv())
             self.username = resp['d']['user']['username']
-            self.required_action = resp['d']['required_action']
+            self.required_action = resp['d'].get('required_action', None) #NEW changes
             self.heartbeat_counter += 1
             self.last_heartbeat = time.time()
 

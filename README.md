@@ -128,6 +128,7 @@ For the `competing` activity type, define what the account should be competing i
 ## Todo
 
 - [ ] add handler to reconnect if a token disconnects (discord's session thing)
+- [ ] add random system specifications for each token
 
 ## Dependencies
 
